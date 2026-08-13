@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+.DS_Store
+caddy_data/
+caddy_config/
+postgres_data/
+
+# Go
+backend/server
+backend/*.exe

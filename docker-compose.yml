@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: familycalendar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: familycalendar
+    ports:
+      # Bound to localhost only, on a non-standard host port to avoid clashing with any
+      # other local Postgres — lets `go run` on the host reach this one for local dev.
+      # The backend container itself talks to Postgres over the internal Docker network.
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U familycalendar -d familycalendar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      PORT: "4000"
+      APP_ENV: production
+      DATABASE_URL: postgres://familycalendar:${POSTGRES_PASSWORD}@postgres:5432/familycalendar?sslmode=disable
+      APP_PASSWORD: ${APP_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET}
+      PUBLIC_APP_URL: https://${DOMAIN}
+      PUBLIC_API_URL: https://${DOMAIN}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      PARTNER_A_NAME: ${PARTNER_A_NAME}
+      PARTNER_B_NAME: ${PARTNER_B_NAME}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - backend
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
